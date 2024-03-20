@@ -38,6 +38,16 @@ E2E_PARALLELISM=1
 
 TESTS_RUN_FILTER_REGEXP ?= ""
 
+.PHONY: test-e2e-community
+test-e2e-community: prepare-e2e deploy-e2e e2e-run-community
+	@echo "The tests successfully finished"
+	@echo "To clean the cluster run 'make clean-e2e-resources'"
+
+.PHONY: test-e2e-community-local
+test-e2e-community-local: prepare-e2e deploy-e2e-local e2e-run-community
+	@echo "The tests successfully finished"
+	@echo "To clean the cluster run 'make clean-e2e-resources'"
+
 .PHONY: test-e2e
 ## Run the e2e tests
 test-e2e: INSTALL_OPERATOR=true
@@ -114,19 +124,35 @@ test-e2e-registration-local:
 	$(MAKE) test-e2e REG_REPO_PATH=${PWD}/../registration-service
 
 .PHONY: e2e-run-parallel
+e2e-run-parallel: IS_COMMUNITY=false
 e2e-run-parallel:
 	@echo "Running e2e tests in parallel..."
 	$(MAKE) execute-tests MEMBER_NS=${MEMBER_NS} MEMBER_NS_2=${MEMBER_NS_2} HOST_NS=${HOST_NS} REGISTRATION_SERVICE_NS=${REGISTRATION_SERVICE_NS} TESTS_TO_EXECUTE="./test/e2e/parallel" E2E_PARALLELISM=100
 	@echo "The parallel e2e tests successfully finished"
 
 .PHONY: e2e-run
+e2e-run: IS_COMMUNITY=false
 e2e-run:
 	@echo "Running e2e tests..."
 	$(MAKE) execute-tests MEMBER_NS=${MEMBER_NS} MEMBER_NS_2=${MEMBER_NS_2} HOST_NS=${HOST_NS} REGISTRATION_SERVICE_NS=${REGISTRATION_SERVICE_NS} TESTS_TO_EXECUTE="./test/e2e ./test/metrics"
 	@echo "The e2e tests successfully finished"
 
+.PHONY: e2e-run-community
+e2e-run-community: IS_COMMUNITY=true
+e2e-run-community:
+	@echo "Running e2e community tests..."
+	$(MAKE) execute-tests IS_COMMUNITY=true MEMBER_NS=${MEMBER_NS} MEMBER_NS_2=${MEMBER_NS_2} HOST_NS=${HOST_NS} REGISTRATION_SERVICE_NS=${REGISTRATION_SERVICE_NS} TESTS_TO_EXECUTE="./test/e2e/community"
+	@echo "The e2e community tests successfully finished"
+
 .PHONY: execute-tests
 execute-tests:
+ifeq ($(IS_COMMUNITY),true)	
+	@echo "enabling PublicViewer support"
+	oc patch -n ${HOST_NS} toolchainconfigs.toolchain.dev.openshift.com config --patch='{"spec":{"publicViewer":{"username":"public-viewer"}}}' --type=merge
+else
+	@echo "disabling PublicViewer support"
+	oc patch -n ${HOST_NS} toolchainconfigs.toolchain.dev.openshift.com config --patch='{"spec":{"publicViewer":null}' --type=merge
+endif
 	@echo "Present Spaces"
 	-oc get Space -n ${HOST_NS}
 	@echo "Status of ToolchainStatus"
